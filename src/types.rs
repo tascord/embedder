@@ -1,7 +1,7 @@
 
 use to_and_fro::{default, ToAndFro};
 
-#[derive(ToAndFro)]
+#[derive(ToAndFro, Clone)]
 #[default("Website")]
 pub enum OgType {
     MusicSong,
@@ -21,7 +21,7 @@ pub enum OgType {
     Website,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WebData {
     // Website title
     pub title: String,

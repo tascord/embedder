@@ -1,6 +1,6 @@
 [package]
 name = "embedder"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Get basic website information with ease."
 license = "MIT"
