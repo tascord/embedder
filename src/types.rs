@@ -1,4 +1,6 @@
-#[derive(Debug, Clone, Default)]
+use serde::{Serialize, Deserialize};
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub enum OgType {
     MusicSong,
     MusicAlbum,
@@ -18,7 +20,7 @@ pub enum OgType {
     Website,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebData {
     // Website title
     pub title: String,

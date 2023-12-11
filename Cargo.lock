@@ -175,10 +175,11 @@ checksum = "3a68a4904193147e0a8dec3314640e6db742afd5f6e634f428a6af230d9b3591"
 
 [[package]]
 name = "embedder"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "reqwest",
  "scraper",
+ "serde",
  "tokio",
  "url",
 ]
