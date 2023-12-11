@@ -1,17 +1,17 @@
 use scraper::{ElementRef, Html, Selector};
-use types::{WebData, OgType};
+use types::{OgType, WebData};
 use url::Url;
 
 pub mod types;
 
-pub async fn fetch(url: &str) -> WebData {
+pub async fn fetch(url: &str) -> Result<WebData, String> {
     let document = Html::parse_document(
         &reqwest::get(url)
             .await
-            .expect("Failed to fetch url")
+            .map_err(|e| format!("Failed to fetch url: {:?}", e))?
             .text()
             .await
-            .expect("Failed to read response"),
+            .map_err(|e| format!("Failed to read response: {:?}", e))?
     );
 
     let find = |id: &str| {
@@ -52,7 +52,7 @@ pub async fn fetch(url: &str) -> WebData {
         .first()
         .map(|e| e.value().attr("content").unwrap().to_string());
 
-    data
+    Ok(data)
 }
 
 pub fn resolve_url(url: &str, base: &str) -> String {
