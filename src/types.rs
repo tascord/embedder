@@ -1,8 +1,4 @@
-
-use to_and_fro::{default, ToAndFro};
-
-#[derive(ToAndFro, Clone)]
-#[default("Website")]
+#[derive(Debug, Clone, Default)]
 pub enum OgType {
     MusicSong,
     MusicAlbum,
@@ -18,6 +14,7 @@ pub enum OgType {
     Book,
     Profile,
 
+    #[default]
     Website,
 }
 

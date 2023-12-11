@@ -63,18 +63,3 @@ pub fn resolve_url(url: &str, base: &str) -> String {
 
     return url.to_string();
 }
-
-
-
-#[cfg(test)]
-pub mod tests {
-    use std::env::args;
-    use super::*;
-
-    #[tokio::test]
-    async fn main() {
-        let url = args().nth(1).expect("No url provided");
-        let data = fetch(&url).await;
-        println!("{:#?}", data);
-    }
-}
