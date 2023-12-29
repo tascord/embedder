@@ -1,9 +1,30 @@
 use scraper::{ElementRef, Html, Selector};
-use types::{OgType, WebData};
+use types::{WebData, OgType};
 use url::Url;
 
 pub mod types;
+pub mod driver;
+pub use types as ty;
+pub use driver as dr;
 
+#[cfg(test)]
+pub mod test {
+    use crate::fetch;
+
+    #[tokio::test]
+    async fn a() {
+        let url = "https://reneweconomy.com.au/market-operator-ticks-off-one-of-major-challenges-of-meeting-100-pct-renewables/";
+        println!("{:?}", fetch(url).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn b() {
+        let url = "https://oilprice.com/Latest-Energy-News/World-News/US-Natural-Gas-Prices-Tumble-10-on-Mild-Weather.html";
+        println!("{:?}", fetch(url).await.unwrap());
+    }
+}
+
+/// Fetches the data from the given url.
 pub async fn fetch(url: &str) -> Result<WebData, String> {
     let document = Html::parse_document(
         &reqwest::get(url)
@@ -34,7 +55,7 @@ pub async fn fetch(url: &str) -> Result<WebData, String> {
     data.r#type = find("meta[property=\"og:type\"]")
         .first()
         .map(|e| OgType::from_meta(e.value().attr("content").unwrap()))
-        .unwrap();
+        .unwrap_or_default();
 
     // <meta property="og:image" />
     data.image = find("meta[property=\"og:image\"]")
@@ -55,6 +76,7 @@ pub async fn fetch(url: &str) -> Result<WebData, String> {
     Ok(data)
 }
 
+/// Resolves the given url to an absolute url.
 pub fn resolve_url(url: &str, base: &str) -> String {
     if url.starts_with("/") || url.starts_with("./") {
         let base = Url::parse(base).unwrap().origin().unicode_serialization();
