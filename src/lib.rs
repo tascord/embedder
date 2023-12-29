@@ -1,10 +1,13 @@
 use scraper::{ElementRef, Html, Selector};
-use types::{WebData, OgType};
+use types::{OgType, WebData};
 use url::Url;
 
 pub mod types;
-pub mod driver;
 pub use types as ty;
+
+#[cfg(feature = "driver")]
+pub mod driver;
+#[cfg(feature = "driver")]
 pub use driver as dr;
 
 #[cfg(test)]
@@ -32,7 +35,7 @@ pub async fn fetch(url: &str) -> Result<WebData, String> {
             .map_err(|e| format!("Failed to fetch url: {:?}", e))?
             .text()
             .await
-            .map_err(|e| format!("Failed to read response: {:?}", e))?
+            .map_err(|e| format!("Failed to read response: {:?}", e))?,
     );
 
     let find = |id: &str| {

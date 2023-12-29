@@ -191,6 +191,8 @@ pub mod test {
             .await
             .unwrap();
 
+        println!("{:?}", data);
+
         close().await;
     }
 }
