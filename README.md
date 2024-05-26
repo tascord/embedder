@@ -1,3 +1,3 @@
 ### Requirements
-- Firefox
+- Firefox (`snap` installs are unsupported)
 - Geckodriver: `cargo install geckodriver`
