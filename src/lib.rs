@@ -1,3 +1,5 @@
+#![allow(clippy::field_reassign_with_default)]
+
 use scraper::{ElementRef, Html, Selector};
 use types::{OgType, WebData};
 use url::Url;
@@ -10,22 +12,6 @@ pub mod driver;
 #[cfg(feature = "driver")]
 pub use driver as dr;
 
-#[cfg(test)]
-pub mod test {
-    use crate::fetch;
-
-    #[tokio::test]
-    async fn a() {
-        let url = "https://reneweconomy.com.au/market-operator-ticks-off-one-of-major-challenges-of-meeting-100-pct-renewables/";
-        println!("{:?}", fetch(url).await.unwrap());
-    }
-
-    #[tokio::test]
-    async fn b() {
-        let url = "https://oilprice.com/Latest-Energy-News/World-News/US-Natural-Gas-Prices-Tumble-10-on-Mild-Weather.html";
-        println!("{:?}", fetch(url).await.unwrap());
-    }
-}
 
 /// Fetches the data from the given url.
 pub async fn fetch(url: &str) -> Result<WebData, String> {
@@ -40,12 +26,12 @@ pub async fn fetch(url: &str) -> Result<WebData, String> {
 
     let find = |id: &str| {
         document
-            .select(&Selector::parse(id).expect(&format!("Failed to build selector: {id}")))
+            .select(&Selector::parse(id).unwrap_or_else(|_| panic!("Failed to build selector: {id}")))
             .collect::<Vec<ElementRef>>()
     };
 
     let mut data = WebData::default();
-
+    
     // <title>
     data.title = find("title").first().unwrap().text().collect();
 
@@ -81,10 +67,28 @@ pub async fn fetch(url: &str) -> Result<WebData, String> {
 
 /// Resolves the given url to an absolute url.
 pub fn resolve_url(url: &str, base: &str) -> String {
-    if url.starts_with("/") || url.starts_with("./") {
+    if url.starts_with('/') || url.starts_with("./") {
         let base = Url::parse(base).unwrap().origin().unicode_serialization();
         return Url::parse(&base).unwrap().join(url).unwrap().to_string();
     }
 
-    return url.to_string();
+    url.to_string()
+}
+
+
+#[cfg(test)]
+pub mod test {
+    use crate::fetch;
+
+    #[tokio::test]
+    async fn a() {
+        let url = "https://reneweconomy.com.au/market-operator-ticks-off-one-of-major-challenges-of-meeting-100-pct-renewables/";
+        println!("{:?}", fetch(url).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn b() {
+        let url = "https://oilprice.com/Latest-Energy-News/World-News/US-Natural-Gas-Prices-Tumble-10-on-Mild-Weather.html";
+        println!("{:?}", fetch(url).await.unwrap());
+    }
 }

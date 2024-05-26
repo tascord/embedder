@@ -42,7 +42,7 @@ pub async fn start(port: Option<usize>, binary: Option<&str>) -> Result<(), Stri
         command.arg("-p").arg(port.to_string());
     }
 
-    if !std::env::var("EMBEDDER_DEBUG").is_ok() {
+    if std::env::var("EMBEDDER_DEBUG").is_err() {
         command.stdin(process::Stdio::null());
         command.stdout(process::Stdio::null());
         command.stderr(process::Stdio::null());
@@ -52,6 +52,7 @@ pub async fn start(port: Option<usize>, binary: Option<&str>) -> Result<(), Stri
         .lock()
         .unwrap()
         .replace(command.spawn().map_err(|_| "Failed to start geckodriver")?);
+
     let address = format!("http://localhost:{}", port.unwrap_or(4444));
     init(&address).await;
 
@@ -69,6 +70,7 @@ pub async fn init(address: &str) {
         .connect(address)
         .await
         .expect("Failed to connect to driver");
+    
     DRIVER.lock().unwrap().replace(driver);
 }
 
@@ -80,6 +82,7 @@ pub async fn close() {
         return;
     }
 
+    // fix this clippy lint?
     DRIVER
         .lock()
         .unwrap()
@@ -97,24 +100,14 @@ async fn find(d: Client, id: &str) -> Vec<Element> {
 
 async fn get_single(d: Client, q: &str) -> Option<String> {
     let e = find(d, q).await;
-    let e = e.first();
+    let e = e.first()?;
 
-    if e.is_none() {
-        return None;
-    }
-
-    let e = e.unwrap();
     let r = e.attr("content").await;
-    if r.is_err() {
-        return None;
-    }
 
-    let r = r.unwrap();
-    if r.is_none() {
-        return None;
+    match r {
+        Ok(r) => r,
+        Err(_) => None,
     }
-
-    Some(r.unwrap())
 }
 async fn get_multiple(d: Client, q: &str) -> Vec<String> {
     let e = find(d, q).await;
