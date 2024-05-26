@@ -70,7 +70,7 @@ pub async fn init(address: &str) {
         .connect(address)
         .await
         .expect("Failed to connect to driver");
-    
+
     DRIVER.lock().unwrap().replace(driver);
 }
 

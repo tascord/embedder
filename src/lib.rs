@@ -12,7 +12,6 @@ pub mod driver;
 #[cfg(feature = "driver")]
 pub use driver as dr;
 
-
 /// Fetches the data from the given url.
 pub async fn fetch(url: &str) -> Result<WebData, String> {
     let document = Html::parse_document(
@@ -26,12 +25,14 @@ pub async fn fetch(url: &str) -> Result<WebData, String> {
 
     let find = |id: &str| {
         document
-            .select(&Selector::parse(id).unwrap_or_else(|_| panic!("Failed to build selector: {id}")))
+            .select(
+                &Selector::parse(id).unwrap_or_else(|_| panic!("Failed to build selector: {id}")),
+            )
             .collect::<Vec<ElementRef>>()
     };
 
     let mut data = WebData::default();
-    
+
     // <title>
     data.title = find("title").first().unwrap().text().collect();
 
@@ -74,7 +75,6 @@ pub fn resolve_url(url: &str, base: &str) -> String {
 
     url.to_string()
 }
-
 
 #[cfg(test)]
 pub mod test {
