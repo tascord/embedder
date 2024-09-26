@@ -5,13 +5,14 @@ use fantoccini::{elements::Element, Client, ClientBuilder, Locator};
 use futures::future::try_join_all;
 
 use crate::types::{OgType, WebData};
+pub use Locator;
 
 lazy_static::lazy_static! {
     static ref DRIVER: Mutex<Option<Client>> = Mutex::new(None);
     static ref CHILD: Mutex<Option<Child>> = Mutex::new(None);
 }
 
-fn get_driver() -> Client {
+pub fn get_driver() -> Client {
     DRIVER
         .lock()
         .unwrap()
