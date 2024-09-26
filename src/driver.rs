@@ -1,11 +1,13 @@
 use std::{process, sync::Mutex};
 
 use async_process::{Child, Command};
-use fantoccini::{elements::Element, Client, ClientBuilder, Locator};
-use futures::future::try_join_all;
+use fantoccini::{elements::Element, Client, ClientBuilder};
+use futures::{future::try_join_all, TryStreamExt};
 
 use crate::types::{OgType, WebData};
 pub use Locator;
+
+pub use fantoccini::{Locator, wd::Capabilities};
 
 lazy_static::lazy_static! {
     static ref DRIVER: Mutex<Option<Client>> = Mutex::new(None);
@@ -23,7 +25,7 @@ pub fn get_driver() -> Client {
 /// Starts a geckodriver instance on the specified port, and initializes the driver.
 /// If no port is specified, the default port of 4444 is used.
 /// If no binary is specified, 'which' is used to find the firefox binary.
-pub async fn start(port: Option<usize>, binary: Option<&str>) -> Result<(), String> {
+pub async fn start(port: Option<usize>, binary: Option<&str>, capabilities: Option<Capabilities>) -> Result<(), String> {
     if DRIVER.lock().unwrap().is_some() {
         eprintln!("Driver already initialized, skipping start");
         return Ok(());
@@ -55,19 +57,20 @@ pub async fn start(port: Option<usize>, binary: Option<&str>) -> Result<(), Stri
         .replace(command.spawn().map_err(|_| "Failed to start geckodriver")?);
 
     let address = format!("http://localhost:{}", port.unwrap_or(4444));
-    init(&address).await;
+    init(&address, capabilities).await;
 
     Ok(())
 }
 
 /// Initializes the driver with the specified address.
-pub async fn init(address: &str) {
+pub async fn init(address: &str, capabilities: Option<Capabilities>) {
     if DRIVER.lock().unwrap().is_some() {
         eprintln!("Driver already initialized, skipping connection");
         return;
     }
 
     let driver = ClientBuilder::native()
+        .capabilities(capabilities.unwrap_or_default())
         .connect(address)
         .await
         .expect("Failed to connect to driver");
@@ -173,19 +176,69 @@ pub async fn fetch(url: &str) -> Result<WebData, String> {
     Ok(data)
 }
 
+/// Downloads the bytes from the specified file download url.
+pub async fn download_file_from<'a>(
+    url: &str,
+    locator: Locator<'a>,
+    link_attr_name: &str,
+    override_dl_link: Option<&str>,
+) -> Result<Vec<u8>, String> {
+    let driver = get_driver();
+
+    driver
+        .goto(url)
+        .await
+        .map_err(|e| format!("Failed to navigate to url: {:?}", e))?;
+
+    let elem = driver.find(locator).await.map_err(|e| e.to_string())?;
+    let dl_link = elem
+        .attr(link_attr_name)
+        .await
+        .map_err(|e| e.to_string())?
+        .unwrap_or_else(|| panic!("Element should have a {link_attr_name}!"));
+
+    let dl_link = override_dl_link.unwrap_or_else(|| dl_link.as_str());
+
+    let bytes = elem
+        .client()
+        .raw_client_for(http::Method::GET, dl_link)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    bytes
+        .into_body()
+        .try_fold(Vec::new(), |mut data, chunk| async move {
+            data.extend_from_slice(&chunk);
+            Ok(data)
+        })
+        .await
+        .map_err(|e| e.to_string())
+}
+
 #[cfg(test)]
 pub mod test {
     use super::*;
 
     #[tokio::test]
-    async fn test_fetch() {
-        start(None, None).await.unwrap();
+    async fn test_fetch_and_download() {
+        start(None, None, None).await.unwrap();
 
         let data = fetch("https://reneweconomy.com.au/aemos-jaw-dropping-prediction-for-coal-power-all-but-gone-from-the-grid-in-a-decade")
             .await
             .unwrap();
 
         println!("{:?}", data);
+
+        let data = download_file_from(
+                "https://testfile.xyz/", 
+                Locator::XPath("/html/body/div/div[5]/div/div[1]/div/div/div/div/a"), 
+                "href",
+                None,
+            )
+            .await
+            .unwrap();
+
+        println!("{:?}", data.len());
 
         close().await;
     }
