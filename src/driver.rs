@@ -5,7 +5,6 @@ use fantoccini::{elements::Element, Client, ClientBuilder};
 use futures::{future::try_join_all, TryStreamExt};
 
 use crate::types::{OgType, WebData};
-pub use Locator;
 
 pub use fantoccini::{Locator, wd::Capabilities};
 
