@@ -1,4 +1,5 @@
 use crate::types::{OgType, WebData};
+use crate::utils::*;
 use async_process::{Child, Command};
 use fantoccini::{elements::Element, Client, ClientBuilder};
 use futures::{future::try_join_all, lock::Mutex};
@@ -41,7 +42,8 @@ pub async fn start(
     if let Some(binary) = binary {
         command.arg("-b").arg(binary);
     } else {
-        let bin_location = which::which("firefox").map_err(|_| anyhow::anyhow!("Failed to find firefox binary"))?;
+        let bin_location = which::which("firefox")
+            .map_err(|_| anyhow::anyhow!("Failed to find firefox binary"))?;
         command.arg("-b").arg(bin_location);
     }
 
@@ -55,7 +57,11 @@ pub async fn start(
         command.stderr(process::Stdio::null());
     }
 
-    *CHILD.lock().await = Some(command.spawn().map_err(|_| anyhow::anyhow!("Failed to start geckodriver"))?);
+    *CHILD.lock().await = Some(
+        command
+            .spawn()
+            .map_err(|_| anyhow::anyhow!("Failed to start geckodriver"))?,
+    );
 
     let address = format!("http://localhost:{}", port.unwrap_or(4444));
     init(&address, capabilities).await;
@@ -90,36 +96,6 @@ pub async fn close() {
     // fix this clippy lint?
     DRIVER.lock().await.take().unwrap().close().await.unwrap();
     CHILD.lock().await.take().unwrap().kill().unwrap();
-}
-
-async fn find(d: Client, id: &str) -> Vec<Element> {
-    d.find_all(Locator::Css(id)).await.unwrap_or_default()
-}
-
-async fn get_single(d: Client, q: &str) -> Option<String> {
-    let e = find(d, q).await;
-    let e = e.first()?;
-
-    let r = e.attr("content").await;
-
-    r.unwrap_or_default()
-}
-async fn get_multiple(d: Client, q: &str) -> Vec<String> {
-    let e = find(d, q).await;
-    let r = try_join_all(e.iter().map(|e| e.attr("content"))).await;
-
-    if r.is_err() {
-        return vec![];
-    }
-
-    let r = r.unwrap();
-    let v: Vec<String> = r
-        .iter()
-        .filter(|v| v.is_some())
-        .map(|v| v.as_ref().unwrap().clone())
-        .collect();
-
-    v
 }
 
 /// Fetches the data from the specified url.

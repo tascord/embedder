@@ -16,6 +16,9 @@ pub mod container_driver;
 #[cfg(feature = "container")]
 pub use container_driver as dr;
 
+#[cfg(feature = "driver")]
+mod utils;
+
 /// Fetches the data from the given url.
 pub async fn fetch(url: &str) -> anyhow::Result<WebData> {
     let document = Html::parse_document(
