@@ -1,31 +1,36 @@
-use std::{process, sync::Mutex};
-
+use crate::types::{OgType, WebData};
 use async_process::{Child, Command};
 use fantoccini::{elements::Element, Client, ClientBuilder};
-use futures::{future::try_join_all, TryStreamExt};
+use futures::{future::try_join_all, lock::Mutex};
+use http::Method;
+use http_body_util::BodyExt;
+use std::process;
 
-use crate::types::{OgType, WebData};
-
-pub use fantoccini::{Locator, wd::Capabilities};
+pub use fantoccini::{wd::Capabilities, Locator};
 
 lazy_static::lazy_static! {
     static ref DRIVER: Mutex<Option<Client>> = Mutex::new(None);
     static ref CHILD: Mutex<Option<Child>> = Mutex::new(None);
 }
 
-pub fn get_driver() -> Client {
+pub async fn get_driver() -> Client {
     DRIVER
         .lock()
-        .unwrap()
-        .clone()
+        .await
+        .as_ref()
         .expect("Client not initialized")
+        .clone()
 }
 
 /// Starts a geckodriver instance on the specified port, and initializes the driver.
 /// If no port is specified, the default port of 4444 is used.
 /// If no binary is specified, 'which' is used to find the firefox binary.
-pub async fn start(port: Option<usize>, binary: Option<&str>, capabilities: Option<Capabilities>) -> Result<(), String> {
-    if DRIVER.lock().unwrap().is_some() {
+pub async fn start(
+    port: Option<usize>,
+    binary: Option<&str>,
+    capabilities: Option<Capabilities>,
+) -> anyhow::Result<()> {
+    if DRIVER.lock().await.is_some() {
         eprintln!("Driver already initialized, skipping start");
         return Ok(());
     }
@@ -36,7 +41,7 @@ pub async fn start(port: Option<usize>, binary: Option<&str>, capabilities: Opti
     if let Some(binary) = binary {
         command.arg("-b").arg(binary);
     } else {
-        let bin_location = which::which("firefox").map_err(|_| "Failed to find firefox binary")?;
+        let bin_location = which::which("firefox").map_err(|_| anyhow::anyhow!("Failed to find firefox binary"))?;
         command.arg("-b").arg(bin_location);
     }
 
@@ -50,10 +55,7 @@ pub async fn start(port: Option<usize>, binary: Option<&str>, capabilities: Opti
         command.stderr(process::Stdio::null());
     }
 
-    CHILD
-        .lock()
-        .unwrap()
-        .replace(command.spawn().map_err(|_| "Failed to start geckodriver")?);
+    *CHILD.lock().await = Some(command.spawn().map_err(|_| anyhow::anyhow!("Failed to start geckodriver"))?);
 
     let address = format!("http://localhost:{}", port.unwrap_or(4444));
     init(&address, capabilities).await;
@@ -63,7 +65,7 @@ pub async fn start(port: Option<usize>, binary: Option<&str>, capabilities: Opti
 
 /// Initializes the driver with the specified address.
 pub async fn init(address: &str, capabilities: Option<Capabilities>) {
-    if DRIVER.lock().unwrap().is_some() {
+    if DRIVER.lock().await.is_some() {
         eprintln!("Driver already initialized, skipping connection");
         return;
     }
@@ -74,27 +76,20 @@ pub async fn init(address: &str, capabilities: Option<Capabilities>) {
         .await
         .expect("Failed to connect to driver");
 
-    DRIVER.lock().unwrap().replace(driver);
+    *DRIVER.lock().await = Some(driver);
 }
 
 /// Closes the driver and geckodriver instance.
 /// Without calling this, the geckodriver instance will remain open.
 pub async fn close() {
-    if DRIVER.lock().unwrap().is_none() {
+    if DRIVER.lock().await.is_none() {
         eprintln!("Driver not initialized, skipping close");
         return;
     }
 
     // fix this clippy lint?
-    DRIVER
-        .lock()
-        .unwrap()
-        .take()
-        .unwrap()
-        .close()
-        .await
-        .unwrap();
-    CHILD.lock().unwrap().take().unwrap().kill().unwrap();
+    DRIVER.lock().await.take().unwrap().close().await.unwrap();
+    CHILD.lock().await.take().unwrap().kill().unwrap();
 }
 
 async fn find(d: Client, id: &str) -> Vec<Element> {
@@ -107,10 +102,7 @@ async fn get_single(d: Client, q: &str) -> Option<String> {
 
     let r = e.attr("content").await;
 
-    match r {
-        Ok(r) => r,
-        Err(_) => None,
-    }
+    r.unwrap_or_default()
 }
 async fn get_multiple(d: Client, q: &str) -> Vec<String> {
     let e = find(d, q).await;
@@ -131,12 +123,12 @@ async fn get_multiple(d: Client, q: &str) -> Vec<String> {
 }
 
 /// Fetches the data from the specified url.
-pub async fn fetch(url: &str) -> Result<WebData, String> {
-    let driver = get_driver();
+pub async fn fetch(url: &str) -> anyhow::Result<WebData> {
+    let driver = get_driver().await;
     driver
         .goto(url)
         .await
-        .map_err(|e| format!("Failed to navigate to url: {:?}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to navigate to url: {:?}", e))?;
 
     let mut data = WebData::default();
 
@@ -176,42 +168,39 @@ pub async fn fetch(url: &str) -> Result<WebData, String> {
 }
 
 /// Downloads the bytes from the specified file download url.
-pub async fn download_file_from<'a>(
+pub async fn download_file_from(
     url: &str,
-    locator: Locator<'a>,
+    locator: Locator<'_>,
     link_attr_name: &str,
     override_dl_link: Option<&str>,
-) -> Result<Vec<u8>, String> {
-    let driver = get_driver();
+) -> anyhow::Result<Vec<u8>> {
+    let driver = get_driver().await;
 
     driver
         .goto(url)
         .await
-        .map_err(|e| format!("Failed to navigate to url: {:?}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to navigate to url: {:?}", e))?;
 
-    let elem = driver.find(locator).await.map_err(|e| e.to_string())?;
+    let elem = driver.find(locator).await?;
     let dl_link = elem
         .attr(link_attr_name)
-        .await
-        .map_err(|e| e.to_string())?
+        .await?
         .unwrap_or_else(|| panic!("Element should have a {link_attr_name}!"));
 
-    let dl_link = override_dl_link.unwrap_or_else(|| dl_link.as_str());
+    let dl_link = override_dl_link.unwrap_or(dl_link.as_str());
 
-    let bytes = elem
-        .client()
-        .raw_client_for(http::Method::GET, dl_link)
-        .await
-        .map_err(|e| e.to_string())?;
+    let response = elem.client().raw_client_for(Method::GET, dl_link).await?;
 
-    bytes
-        .into_body()
-        .try_fold(Vec::new(), |mut data, chunk| async move {
-            data.extend_from_slice(&chunk);
-            Ok(data)
-        })
-        .await
-        .map_err(|e| e.to_string())
+    let mut body = response.into_body();
+
+    let mut result = Vec::new();
+    while let Some(frame) = body.frame().await {
+        match frame {
+            Ok(frame) if frame.is_data() => result.extend_from_slice(&frame.into_data().unwrap()),
+            _ => continue,
+        }
+    }
+    Ok(result)
 }
 
 #[cfg(test)]
@@ -229,13 +218,13 @@ pub mod test {
         println!("{:?}", data);
 
         let data = download_file_from(
-                "https://testfile.xyz/", 
-                Locator::XPath("/html/body/div/div[5]/div/div[1]/div/div/div/div/a"), 
-                "href",
-                None,
-            )
-            .await
-            .unwrap();
+            "https://hil-speed.hetzner.com/",
+            Locator::Css("body > p:nth-child(2) > a"),
+            "href",
+            None,
+        )
+        .await
+        .unwrap();
 
         println!("{:?}", data.len());
 
