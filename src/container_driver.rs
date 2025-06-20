@@ -243,8 +243,8 @@ async fn build_container(port: Option<u16>, runner: &PathBuf, name: &str) -> any
         .arg("0.0.0.0")
         .arg("-p")
         .arg(port.to_string())
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
         .output()
         .await?;
     Ok(port)
