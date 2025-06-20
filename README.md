@@ -1,3 +1,11 @@
-### Requirements
-- Firefox (`snap` installs are unsupported)
-- Geckodriver: `cargo install geckodriver`
+## Requirements
+| Package            | Default | Driver | Container |
+|--------------------|:-------:|:------:|:---------:|
+| Geckodriver        |    ❎    |    ✅   |     🤖     |
+| Firefox (Non-snap) |    ❎    |    ✅   |     🤖     |
+| Docker / Podman    |    ❎    |    ✅   |     ✅     |
+
+### Key:
+- ❎ : Not needed
+- ✅ : Needed
+- 🤖 : Automatically Installed
