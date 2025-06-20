@@ -7,20 +7,27 @@ use url::Url;
 pub mod types;
 pub use types as ty;
 
-#[cfg(feature = "driver")]
+#[cfg(all(feature = "driver", not(feature = "container")))]
 pub mod driver;
-#[cfg(feature = "driver")]
+#[cfg(all(feature = "driver", not(feature = "container")))]
 pub use driver as dr;
+#[cfg(feature = "container")]
+pub mod container_driver;
+#[cfg(feature = "container")]
+pub use container_driver as dr;
+
+#[cfg(feature = "driver")]
+mod utils;
 
 /// Fetches the data from the given url.
-pub async fn fetch(url: &str) -> Result<WebData, String> {
+pub async fn fetch(url: &str) -> anyhow::Result<WebData> {
     let document = Html::parse_document(
         &reqwest::get(url)
             .await
-            .map_err(|e| format!("Failed to fetch url: {:?}", e))?
+            .map_err(|e| anyhow::anyhow!("Failed to fetch url: {:?}", e))?
             .text()
             .await
-            .map_err(|e| format!("Failed to read response: {:?}", e))?,
+            .map_err(|e| anyhow::anyhow!("Failed to read response: {:?}", e))?,
     );
 
     let find = |id: &str| {
