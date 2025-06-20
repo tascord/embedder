@@ -5,6 +5,7 @@ use futures::AsyncWriteExt;
 use http::Method;
 use http_body_util::BodyExt;
 use std::{
+    fmt::Debug,
     net::TcpListener,
     ops::{Deref, Not},
     path::PathBuf,
@@ -19,11 +20,15 @@ use crate::types::WebData;
 const DOCKERFILE: &str = include_str!("../Dockerfile");
 const BUILD_LOCK: &str = "/tmp/embedder-build.lock";
 const PORT_LOCK: &str = "/tmp/embedder-port.lock";
-pub struct Driver(fantoccini::Client, String);
+#[derive(Debug)]
+pub struct Driver(fantoccini::Client, String, u16);
 
 impl Driver {
     pub fn name(&self) -> &str {
         &self.1
+    }
+    pub fn port(&self) -> u16 {
+        self.2
     }
 
     pub async fn new(
@@ -41,13 +46,13 @@ impl Driver {
 
         let address = format!("http://127.0.0.1:{}", port);
 
-        println!("\n\nRunning {} on: {address}\n\n", name);
+        // println!("\n\nRunning {} on: {address}\n\n", name);
         let driver = ClientBuilder::native()
             .capabilities(capabilities.unwrap_or_default())
             .connect(&address)
             .await?;
 
-        Ok(Driver(driver, name.into()))
+        Ok(Driver(driver, name.into(), port))
     }
 
     /// Fetches the data from the specified url.
